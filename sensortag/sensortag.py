@@ -53,7 +53,7 @@ class SensorTag:
 
     def char_write_cmd( self, handle, value ):
         # The 0%x for value is VERY naughty!  Fix this!
-        cmd = 'char-write-cmd 0x%02x 0%x' % (handle, value)
+        cmd = 'char-write-cmd 0x%02x %s' % (handle, value)
         print cmd
         self.con.sendline( cmd )
         return
@@ -158,45 +158,58 @@ def main():
         datalog = open(sys.argv[2], 'w+')
 
     while True:
-     try:   
+     try:
       print "[re]starting.."
 
       tag = SensorTag(bluetooth_adr)
       cbs = SensorCallbacks(bluetooth_adr)
 
       # enable TMP006 sensor
-      tag.register_cb(0x25,cbs.tmp006)
-      tag.char_write_cmd(0x29,0x01)
-      tag.char_write_cmd(0x26,0x0100)
+      tag.register_cb(0x21,cbs.tmp006)
+      tag.char_write_cmd(0x24, "01")   # IR Temperature Config  RW  Write "01" to start Sensor and Measurements, "00" to put to sleep
+      tag.char_write_cmd(0x26, "20") # IR Temperature Period  RW  Period = [Input*10] ms, (lower limit 300 ms), default 1000 ms
+      tag.char_write_cmd(0x22, "0100") # Client Characteristic Configuration  RW  Write "01:00" to enable notifications, "00:00" to disable
 
-      # enable accelerometer
-      tag.register_cb(0x2d,cbs.accel)
-      tag.char_write_cmd(0x31,0x01)
-      tag.char_write_cmd(0x2e,0x0100)
+      if False:
+          # enable humidity
+          tag.register_cb(0x38, cbs.humidity)
+          tag.char_write_cmd(0x3c,0x01)
+          tag.char_write_cmd(0x39,0x0100)
 
-      # enable humidity
-      tag.register_cb(0x38, cbs.humidity)
-      tag.char_write_cmd(0x3c,0x01)
-      tag.char_write_cmd(0x39,0x0100)
+          # fetch barometer calibration
+          tag.char_write_cmd(0x4f,0x02)
+          rawcal = tag.char_read_hnd(0x52)
+          barometer = Barometer( rawcal )
+          # enable barometer
+          tag.register_cb(0x4b,cbs.baro)
+          tag.char_write_cmd(0x4f,0x01)
+          tag.char_write_cmd(0x4c,0x0100)
 
-      # enable magnetometer
-      tag.register_cb(0x40,cbs.magnet)
-      tag.char_write_cmd(0x44,0x01)
-      tag.char_write_cmd(0x41,0x0100)
+          # enable lux
+          tag.register_cb(0x4b,cbs.lux)
+          tag.char_write_cmd(0x4f, "01")
+          tag.char_write_cmd(0x4c,"0100")
 
-      # enable gyroscope
-      tag.register_cb(0x57,cbs.gyro)
-      tag.char_write_cmd(0x5b,0x07)
-      tag.char_write_cmd(0x58,0x0100)
+      if False:
+          # enable accelerometer
+          tag.register_cb(0x2d,cbs.accel)
+          tag.char_write_cmd(0x31,0x01)
+          tag.char_write_cmd(0x2e,0x0100)
 
-      # fetch barometer calibration
-      tag.char_write_cmd(0x4f,0x02)
-      rawcal = tag.char_read_hnd(0x52)
-      barometer = Barometer( rawcal )
-      # enable barometer
-      tag.register_cb(0x4b,cbs.baro)
-      tag.char_write_cmd(0x4f,0x01)
-      tag.char_write_cmd(0x4c,0x0100)
+
+
+          # enable magnetometer
+          tag.register_cb(0x40,cbs.magnet)
+          tag.char_write_cmd(0x44,0x01)
+          tag.char_write_cmd(0x41,0x0100)
+
+          # enable gyroscope
+          tag.register_cb(0x57,cbs.gyro)
+          tag.char_write_cmd(0x5b,0x07)
+          tag.char_write_cmd(0x58,0x0100)
+
+
+          pass
 
       tag.notification_loop()
      except:
@@ -204,4 +217,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

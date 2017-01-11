@@ -105,9 +105,9 @@ class SensorCallbacks:
     def tmp006(self,v):
         objT = (v[1]<<8)+v[0]
         ambT = (v[3]<<8)+v[2]
-        targetT = calcTmpTarget(objT, ambT)
-        self.data['t006'] = targetT
-        print "T006 %.1f" % targetT
+        (targetT, ambientT) = calcTmpTarget(objT, ambT)
+        self.data['t006'] = [targetT, ambientT]
+        print "T006 %.1f %.1f" % (targetT, ambientT)
 
     def accel(self,v):
         (xyz,mag) = calcAccel(v[0],v[1],v[2])
@@ -119,23 +119,29 @@ class SensorCallbacks:
         rawH = (v[3]<<8)+v[2]
         (t, rh) = calcHum(rawT, rawH)
         self.data['humd'] = [t, rh]
-        print "HUMD %.1f" % rh
+        print "HUMD %.1f %.1f" % (t, rh)
+
+    def lux(self, v):
+        rawL = (v[1]<<8)+v[0]
+        lux = calcLux(rawL)
+        self.data['lux'] = lux
+        print "LUX %.1f" % lux
 
     def baro(self,v):
-        global barometer
-        global datalog
-        rawT = (v[1]<<8)+v[0]
-        rawP = (v[3]<<8)+v[2]
-        (temp, pres) =  self.data['baro'] = barometer.calc(rawT, rawP)
-        print "BARO", temp, pres
-        self.data['time'] = long(time.time() * 1000);
-        # The socket or output file might not be writeable
-        # check with select so we don't block.
-        (re,wr,ex) = select.select([],[datalog],[],0)
-        if len(wr) > 0:
-            datalog.write(json.dumps(self.data) + "\n")
-            datalog.flush()
-            pass
+        rawT = (v[2]<<16)+(v[1]<<8)+v[0]
+        rawP = (v[5]<<16)+(v[4]<<8)+v[3]
+        (temp, pres) =  calcBaro(rawT, rawP)
+        self.data['baro'] = [temp, pres]
+        print "BARO %0.1f %0.1f" % (temp, pres)
+
+        #self.data['time'] = long(time.time() * 1000);
+        ## The socket or output file might not be writeable
+        ## check with select so we don't block.
+        #(re,wr,ex) = select.select([],[datalog],[],0)
+        #if len(wr) > 0:
+        #    datalog.write(json.dumps(self.data) + "\n")
+        #    datalog.flush()
+        #    pass
 
     def magnet(self,v):
         x = (v[1]<<8)+v[0]
@@ -170,46 +176,25 @@ def main():
       tag.char_write_cmd(0x26, "20") # IR Temperature Period  RW  Period = [Input*10] ms, (lower limit 300 ms), default 1000 ms
       tag.char_write_cmd(0x22, "0100") # Client Characteristic Configuration  RW  Write "01:00" to enable notifications, "00:00" to disable
 
-      if False:
-          # enable humidity
-          tag.register_cb(0x38, cbs.humidity)
-          tag.char_write_cmd(0x3c,0x01)
-          tag.char_write_cmd(0x39,0x0100)
 
-          # fetch barometer calibration
-          tag.char_write_cmd(0x4f,0x02)
-          rawcal = tag.char_read_hnd(0x52)
-          barometer = Barometer( rawcal )
-          # enable barometer
-          tag.register_cb(0x4b,cbs.baro)
-          tag.char_write_cmd(0x4f,0x01)
-          tag.char_write_cmd(0x4c,0x0100)
+      # enable humidity
+      tag.register_cb(0x29, cbs.humidity)
+      tag.char_write_cmd(0x2C, "01") # Humidity Config		RW	Write "01" to start measurements, "00" to stop
+      tag.char_write_cmd(0x2E,"40") # Humidity Period		RW	Period = [Input*10] ms, (lower limit 100 ms), default 1000 ms
+      tag.char_write_cmd(0x2A,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
 
-          # enable lux
-          tag.register_cb(0x4b,cbs.lux)
-          tag.char_write_cmd(0x4f, "01")
-          tag.char_write_cmd(0x4c,"0100")
+      # enable lux
+      tag.register_cb(0x41, cbs.lux)
+      tag.char_write_cmd(0x44, "01") # Luxometer Config		RW	Write "01" to start Sensor and Measurements, "00" to put to sleep
+      tag.char_write_cmd(0x46,"80") # Luxometer Period		RW	Period = [Input*10]ms (lower limit 1000ms), default 2000ms
+      tag.char_write_cmd(0x42,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
 
-      if False:
-          # enable accelerometer
-          tag.register_cb(0x2d,cbs.accel)
-          tag.char_write_cmd(0x31,0x01)
-          tag.char_write_cmd(0x2e,0x0100)
+      # enable barometer
+      tag.register_cb(0x31,cbs.baro)
+      tag.char_write_cmd(0x32, "0100") # Write "01:00" to enable notifications, "00:00" to disable
+      tag.char_write_cmd(0x34, "01") # Write "01" to start Sensor and Measurements, "00" to put to sleep, "02" to read calibration values from sensor
+      tag.char_write_cmd(0x36, "40") # Barometer Period		RW	Period = [Input*10] ms, (lower limit 100 ms), default 1000 ms
 
-
-
-          # enable magnetometer
-          tag.register_cb(0x40,cbs.magnet)
-          tag.char_write_cmd(0x44,0x01)
-          tag.char_write_cmd(0x41,0x0100)
-
-          # enable gyroscope
-          tag.register_cb(0x57,cbs.gyro)
-          tag.char_write_cmd(0x5b,0x07)
-          tag.char_write_cmd(0x58,0x0100)
-
-
-          pass
 
       tag.notification_loop()
      except:

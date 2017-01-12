@@ -38,10 +38,10 @@ class SensorTag:
     def __init__( self, bluetooth_adr ):
         self.con = pexpect.spawn('gatttool -b ' + bluetooth_adr + ' --interactive')
         self.con.expect('\[LE\]>', timeout=600)
-        print "Preparing to connect. You might need to press the side button..."
+        print("Preparing to connect. You might need to press the side button...")
         self.con.sendline('connect')
         # test for success of connect
-	self.con.expect('Connection successful.*\[LE\]>')
+        self.con.expect('Connection successful.*\[LE\]>')
         # Earlier versions of gatttool returned a different message.  Use this pattern -
         #self.con.expect('\[CON\].*>')
         self.cb = {}
@@ -54,7 +54,7 @@ class SensorTag:
     def char_write_cmd( self, handle, value ):
         # The 0%x for value is VERY naughty!  Fix this!
         cmd = 'char-write-cmd 0x%02x %s' % (handle, value)
-        print cmd
+        print (cmd)
         self.con.sendline( cmd )
         return
 
@@ -68,31 +68,30 @@ class SensorTag:
     # Notification handle = 0x0025 value: 9b ff 54 07
     def notification_loop( self ):
         while True:
-	    try:
+            try:
               pnum = self.con.expect('Notification handle = .*? \r', timeout=4)
             except pexpect.TIMEOUT:
-              print "TIMEOUT exception!"
+              print ("TIMEOUT exception!")
               break
-	    if pnum==0:
+            if pnum==0:
                 after = self.con.after
-	        hxstr = after.split()[3:]
-            	handle = long(float.fromhex(hxstr[0]))
+                hxstr = after.split()[3:]
+                handle = int(float.fromhex(hxstr[0].decode("utf-8")))
             	#try:
-	        if True:
-                  self.cb[handle]([long(float.fromhex(n)) for n in hxstr[2:]])
+            if True:
+                self.cb[handle]([int(float.fromhex(n.decode("utf-8"))) for n in hxstr[2:]])
             	#except:
                 #  print "Error in callback for %x" % handle
                 #  print sys.argv[1]
                 pass
             else:
-              print "TIMEOUT!!"
+              print ("TIMEOUT!!")
         pass
 
     def register_cb( self, handle, fn ):
         self.cb[handle]=fn;
         return
 
-barometer = None
 datalog = sys.stdout
 
 class SensorCallbacks:
@@ -102,76 +101,59 @@ class SensorCallbacks:
     def __init__(self,addr):
         self.data['addr'] = addr
 
-    def tmp006(self,v):
+    def ir(self,v):
         objT = (v[1]<<8)+v[0]
         ambT = (v[3]<<8)+v[2]
         (targetT, ambientT) = calcTmpTarget(objT, ambT)
-        self.data['t006'] = [targetT, ambientT]
-        print "T006 %.1f %.1f" % (targetT, ambientT)
+        self.data['ir'] = [targetT, ambientT]
+        print ("IR %.1f %.1f" % (targetT, ambientT))
 
     def accel(self,v):
         (xyz,mag) = calcAccel(v[0],v[1],v[2])
         self.data['accl'] = xyz
-        print "ACCL", xyz
+        print ("ACCL", xyz)
 
     def humidity(self, v):
         rawT = (v[1]<<8)+v[0]
         rawH = (v[3]<<8)+v[2]
         (t, rh) = calcHum(rawT, rawH)
         self.data['humd'] = [t, rh]
-        print "HUMD %.1f %.1f" % (t, rh)
+        print ("HUMD %.1f %.1f" % (t, rh))
 
     def lux(self, v):
         rawL = (v[1]<<8)+v[0]
         lux = calcLux(rawL)
         self.data['lux'] = lux
-        print "LUX %.1f" % lux
+        print ("LUX %.1f" % lux)
 
     def baro(self,v):
         rawT = (v[2]<<16)+(v[1]<<8)+v[0]
         rawP = (v[5]<<16)+(v[4]<<8)+v[3]
         (temp, pres) =  calcBaro(rawT, rawP)
         self.data['baro'] = [temp, pres]
-        print "BARO %0.1f %0.1f" % (temp, pres)
+        print ("BARO %0.1f %0.1f" % (temp, pres))
+        self.data['time'] = int(time.time() * 1000)
+        print (self.data)
 
-        #self.data['time'] = long(time.time() * 1000);
-        ## The socket or output file might not be writeable
-        ## check with select so we don't block.
-        #(re,wr,ex) = select.select([],[datalog],[],0)
-        #if len(wr) > 0:
-        #    datalog.write(json.dumps(self.data) + "\n")
-        #    datalog.flush()
-        #    pass
-
-    def magnet(self,v):
-        x = (v[1]<<8)+v[0]
-        y = (v[3]<<8)+v[2]
-        z = (v[5]<<8)+v[4]
-        xyz = calcMagn(x, y, z)
-        self.data['magn'] = xyz
-        print "MAGN", xyz
-
-    def gyro(self,v):
-        print "GYRO", v
 
 def main():
     global datalog
-    global barometer
-
     bluetooth_adr = sys.argv[1]
-    #data['addr'] = bluetooth_adr
     if len(sys.argv) > 2:
         datalog = open(sys.argv[2], 'w+')
 
     while True:
-     try:
-      print "[re]starting.."
+     #try:
+         #pass
+
+     while True:
+      print ("[re]starting..")
 
       tag = SensorTag(bluetooth_adr)
       cbs = SensorCallbacks(bluetooth_adr)
 
       # enable TMP006 sensor
-      tag.register_cb(0x21,cbs.tmp006)
+      tag.register_cb(0x21,cbs.ir)
       tag.char_write_cmd(0x24, "01")   # IR Temperature Config  RW  Write "01" to start Sensor and Measurements, "00" to put to sleep
       tag.char_write_cmd(0x26, "20") # IR Temperature Period  RW  Period = [Input*10] ms, (lower limit 300 ms), default 1000 ms
       tag.char_write_cmd(0x22, "0100") # Client Characteristic Configuration  RW  Write "01:00" to enable notifications, "00:00" to disable
@@ -197,8 +179,8 @@ def main():
 
 
       tag.notification_loop()
-     except:
-      pass
+     #except:
+      #pass
 
 if __name__ == "__main__":
     main()

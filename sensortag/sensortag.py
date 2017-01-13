@@ -27,7 +27,7 @@ import json
 import select
 from tag_commands import readCommand
 
-DEBUG = False
+DEBUG = True
 
 tag = None
 
@@ -65,38 +65,46 @@ class SensorTag:
         print ("Enabling", sensors)
         global tag
         cbs = tag.cbs
-        if True:
-              # enable IR sensor
-              tag.register_cb(0x21,cbs.ir)
-              tag.char_write_cmd(0x24, "01")   # IR Temperature Config  RW  Write "01" to start Sensor and Measurements, "00" to put to sleep
-              tag.char_write_cmd(0x22, "0100") # Client Characteristic Configuration  RW  Write "01:00" to enable notifications, "00:00" to disable
-
-              # enable humidity
-              tag.register_cb(0x29, cbs.humidity)
-              tag.char_write_cmd(0x2C, "01") # Humidity Config		RW	Write "01" to start measurements, "00" to stop
-              tag.char_write_cmd(0x2A,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
-
-              # enable lux
-              tag.register_cb(0x41, cbs.lux)
-              tag.char_write_cmd(0x44, "01") # Luxometer Config		RW	Write "01" to start Sensor and Measurements, "00" to put to sleep
-              tag.char_write_cmd(0x42,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
-
-              # enable barometer
-              tag.register_cb(0x31,cbs.baro)
-              tag.char_write_cmd(0x34, "01") # Write "01" to start Sensor and Measurements, "00" to put to sleep, "02" to read calibration values from sensor
-              tag.char_write_cmd(0x32, "0100") # Write "01:00" to enable notifications, "00:00" to disable
+        all = False
+        if 'all' in sensors:
+            print ("ALL SENSORS")
+            all = True
+        if all or 'ir' in sensors:
+            # enable IR sensor
+            tag.register_cb(0x21,cbs.ir)
+            tag.char_write_cmd(0x24, "01")   # IR Temperature Config  RW  Write "01" to start Sensor and Measurements, "00" to put to sleep
+            tag.char_write_cmd(0x22, "0100") # Client Characteristic Configuration  RW  Write "01:00" to enable notifications, "00:00" to disable
+        if all or 'hum' in sensors:
+            # enable humidity
+            tag.register_cb(0x29, cbs.humidity)
+            tag.char_write_cmd(0x2C, "01") # Humidity Config		RW	Write "01" to start measurements, "00" to stop
+            tag.char_write_cmd(0x2A,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
+        if all or 'lux' in sensors:
+            # enable lux
+            tag.register_cb(0x41, cbs.lux)
+            tag.char_write_cmd(0x44, "01") # Luxometer Config		RW	Write "01" to start Sensor and Measurements, "00" to put to sleep
+            tag.char_write_cmd(0x42,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
+        if all or 'baro' in sensors:
+            # enable barometer
+            tag.register_cb(0x31,cbs.baro)
+            tag.char_write_cmd(0x34, "01") # Write "01" to start Sensor and Measurements, "00" to put to sleep, "02" to read calibration values from sensor
+            tag.char_write_cmd(0x32, "0100") # Write "01:00" to enable notifications, "00:00" to disable
 
     def disableSensors( self, sensors ):
         print ("Disabling", sensors)
         global tag
         # disable IR sensor
         tag.char_write_cmd(0x24, "00")
+        tag.char_write_cmd(0x22, "0000")
         # disable humidity sensor
         tag.char_write_cmd(0x2C, "00")
+        tag.char_write_cmd(0x2A,"0000")
         # disable lux sensor
         tag.char_write_cmd(0x44, "00")
+        tag.char_write_cmd(0x42,"0000")
         # disable barometer sensor
         tag.char_write_cmd(0x34, "00")
+        tag.char_write_cmd(0x32, "0000")
 
     def setInterval( self, ms ):
         if ms < 1000:

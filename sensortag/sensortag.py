@@ -26,8 +26,9 @@ from sensor_calcs import *
 import json
 import select
 from tag_commands import readCommand
+import atexit
 
-DEBUG = True
+DEBUG = False
 
 tag = None
 
@@ -64,53 +65,50 @@ class SensorTag:
     def enableSensors( self, sensors ):
         print ("Enabling", sensors)
         global tag
-        cbs = tag.cbs
         all = False
         if 'all' in sensors:
-            print ("ALL SENSORS")
             all = True
         if all or 'ir' in sensors:
             # enable IR sensor
-            tag.register_cb(0x21,cbs.ir)
             tag.char_write_cmd(0x24, "01")   # IR Temperature Config  RW  Write "01" to start Sensor and Measurements, "00" to put to sleep
             tag.char_write_cmd(0x22, "0100") # Client Characteristic Configuration  RW  Write "01:00" to enable notifications, "00:00" to disable
         if all or 'hum' in sensors:
             # enable humidity
-            tag.register_cb(0x29, cbs.humidity)
             tag.char_write_cmd(0x2C, "01") # Humidity Config		RW	Write "01" to start measurements, "00" to stop
             tag.char_write_cmd(0x2A,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
         if all or 'lux' in sensors:
             # enable lux
-            tag.register_cb(0x41, cbs.lux)
             tag.char_write_cmd(0x44, "01") # Luxometer Config		RW	Write "01" to start Sensor and Measurements, "00" to put to sleep
             tag.char_write_cmd(0x42,"0100") # Client Characteristic Configuration		RW	Write "01:00" to enable notifications, "00:00" to disable
         if all or 'baro' in sensors:
             # enable barometer
-            tag.register_cb(0x31,cbs.baro)
             tag.char_write_cmd(0x34, "01") # Write "01" to start Sensor and Measurements, "00" to put to sleep, "02" to read calibration values from sensor
             tag.char_write_cmd(0x32, "0100") # Write "01:00" to enable notifications, "00:00" to disable
 
     def disableSensors( self, sensors ):
         print ("Disabling", sensors)
         global tag
-        # disable IR sensor
-        tag.char_write_cmd(0x24, "00")
-        tag.char_write_cmd(0x22, "0000")
-        # disable humidity sensor
-        tag.char_write_cmd(0x2C, "00")
-        tag.char_write_cmd(0x2A,"0000")
-        # disable lux sensor
-        tag.char_write_cmd(0x44, "00")
-        tag.char_write_cmd(0x42,"0000")
-        # disable barometer sensor
-        tag.char_write_cmd(0x34, "00")
-        tag.char_write_cmd(0x32, "0000")
+        all = False
+        if 'all' in sensors:
+            all = True
+        if all or 'ir' in sensors:
+            # disable IR sensor
+            tag.char_write_cmd(0x24, "00")
+            tag.char_write_cmd(0x22, "0000")
+        if all or 'hum' in sensors:
+            # disable humidity sensor
+            tag.char_write_cmd(0x2C, "00")
+            tag.char_write_cmd(0x2A,"0000")
+        if all or 'lux' in sensors:
+            # disable lux sensor
+            tag.char_write_cmd(0x44, "00")
+            tag.char_write_cmd(0x42,"0000")
+        if all or 'baro' in sensors:
+            # disable barometer sensor
+            tag.char_write_cmd(0x34, "00")
+            tag.char_write_cmd(0x32, "0000")
 
-    def setInterval( self, ms ):
-        if ms < 1000:
-            ms = 1000
-        hexinterval = "%04X" % int(ms/10)
-        # IR
+    def setInterval( self, hexinterval ):
         tag.char_write_cmd(0x26, hexinterval)
         # humidity
         tag.char_write_cmd(0x2E, hexinterval)
@@ -151,9 +149,9 @@ class SensorTag:
                 elif kind == "DISABLE":
                     self.disableSensors(value)
                 elif kind == "INTERVAL":
-                    self.setInterval(int(value[0]))
+                    self.setInterval((value[0]))
             try:
-              pnum = self.con.expect('Notification handle = .*? \r', timeout=4)
+              pnum = self.con.expect('Notification handle = .*? \r', timeout=10)
             except pexpect.TIMEOUT:
               print ("TIMEOUT exception!")
               #break
@@ -161,11 +159,7 @@ class SensorTag:
                 after = self.con.after
                 hxstr = after.split()[3:]
                 handle = int(float.fromhex(hxstr[0].decode("utf-8")))
-            #if handle:
                 self.cb[handle]([int(float.fromhex(n.decode("utf-8"))) for n in hxstr[2:]])
-            	#except:
-                #  print "Error in callback for %x" % handle
-                #  print sys.argv[1]
                 pass
             else:
               print ("TIMEOUT!!")
@@ -230,10 +224,22 @@ def main():
 
       tag = SensorTag(bluetooth_adr)
       tag.cbs = SensorCallbacks(bluetooth_adr)
+      #tag.setInterval("0010")
+      tag.register_cb(0x21, tag.cbs.ir)
+      tag.register_cb(0x29, tag.cbs.humidity)
+      tag.register_cb(0x41, tag.cbs.lux)
+      tag.register_cb(0x31, tag.cbs.baro)
+      #tag.setInterval("0010")
+      tag.enableSensors(["all"])
+      tag.setInterval("0100")
+      try:
+          tag.notification_loop()
+      except KeyboardInterrupt:
+          sys.exit()
 
-
-      tag.notification_loop()
-
+def cleanup():
+    print ("Goodbye!")
 
 if __name__ == "__main__":
+    atexit.register(cleanup)
     main()

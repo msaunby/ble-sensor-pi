@@ -3,6 +3,23 @@ ble-sensor-pi
 
 Simple example for SensorTag with RaspberryPi a Bluetooth Low Engery (BLE GATT) device.
 
+SensorTag2015
+Requirements
+python3
+
+apt-get install python3
+apt-get install python3-pip
+pip3 install pexpect
+
+
+Also
+apt-get install git
+Maybe also
+ssh-keygen
+
+
+
+
 See sensortag/sensortag_test.py for a simple example of reading temperature values from the tag. The same approach could be used to read any of the sensors.  It's also possible to have the tag send a stream of measurements at regular intervals.  See the information here -
   http://processors.wiki.ti.com/index.php/SensorTag_User_Guide
 Or wait for me to add more examples.

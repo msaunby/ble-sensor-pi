@@ -204,20 +204,23 @@ class SensorCallbacks:
         debug_print ("LUX %.1f" % lux)
 
     def baro(self,v):
+        global datalog
         rawT = (v[2]<<16)+(v[1]<<8)+v[0]
         rawP = (v[5]<<16)+(v[4]<<8)+v[3]
         (temp, pres) =  calcBaro(rawT, rawP)
         self.data['baro'] = [temp, pres]
         debug_print ("BARO %0.1f %0.1f" % (temp, pres))
         self.data['time'] = int(time.time() * 1000)
-        print (self.data)
+        datalog.write(str(self.data) + "\n")
 
 
 def main():
     global datalog, tag
     bluetooth_adr = sys.argv[1]
     if len(sys.argv) > 2:
-        datalog = open(sys.argv[2], 'w+')
+        datalog = open(sys.argv[2], 'a+')
+    else:
+        datalog = sys.stdout
 
     while True:
       debug_print ("[re]starting..")
@@ -238,6 +241,9 @@ def main():
           sys.exit()
 
 def cleanup():
+    global datalog
+    if datalog != sys.stdout:
+        datalog.close()
     print ("Goodbye!")
 
 if __name__ == "__main__":

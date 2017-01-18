@@ -48,11 +48,11 @@ class SensorTag:
 
     def __init__( self, bluetooth_adr ):
         self.con = pexpect.spawn('gatttool -b ' + bluetooth_adr + ' --interactive')
-        self.con.expect('\[LE\]>', timeout=600)
+        self.con.expect('\[LE\]>', timeout=60)
         debug_print("Preparing to connect. You might need to press the side button...")
         self.con.sendline('connect')
         # test for success of connect
-        self.con.expect('Connection successful.*\[LE\]>')
+        self.con.expect('Connection successful.*\[LE\]>', timeout=5)
         # Earlier versions of gatttool returned a different message.  Use this pattern -
         #self.con.expect('\[CON\].*>')
         self.cb = {}
